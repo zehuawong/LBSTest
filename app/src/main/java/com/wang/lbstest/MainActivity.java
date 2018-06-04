@@ -18,7 +18,12 @@ import com.baidu.location.BDLocationListener;
 import com.baidu.location.LocationClient;
 import com.baidu.location.LocationClientOption;
 import com.baidu.mapapi.SDKInitializer;
+import com.baidu.mapapi.map.BaiduMap;
+import com.baidu.mapapi.map.MapStatusUpdate;
+import com.baidu.mapapi.map.MapStatusUpdateFactory;
 import com.baidu.mapapi.map.MapView;
+import com.baidu.mapapi.map.MyLocationData;
+import com.baidu.mapapi.model.LatLng;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +34,9 @@ public class MainActivity extends AppCompatActivity {
     private MapView mapView;
     private MyLocationListener myListener = new MyLocationListener();
 
+    private BaiduMap baiduMap;
+    private boolean isFirstLocate=true;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -37,10 +45,13 @@ public class MainActivity extends AppCompatActivity {
 
         positionText=findViewById(R.id.position_text_view);
         mapView=findViewById(R.id.bmapView);
-        mLocationClient=new LocationClient(getApplicationContext());
+        baiduMap=mapView.getMap();
+        baiduMap.setMyLocationEnabled(true); //将‘我’显示到地图上
 
+        mLocationClient=new LocationClient(getApplicationContext());
         mLocationClient.registerLocationListener(myListener);
 
+        //下面的这几个需要在运行时进行权限处理
         List<String> permissionList=new ArrayList<>();
         if(ContextCompat.checkSelfPermission(MainActivity.this,Manifest.permission.ACCESS_FINE_LOCATION)
             !=PackageManager.PERMISSION_GRANTED){
@@ -80,8 +91,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         mLocationClient.stop(); //停止定位，避免后台消耗手机电量
-
         mapView.onDestroy();
+        baiduMap.setMyLocationEnabled(false);
     }
 
 
@@ -97,6 +108,31 @@ public class MainActivity extends AppCompatActivity {
         //LocationClientOption.LocationMode.Hight_Accuracy是默认的模式
         option.setIsNeedAddress(true); //表示需要获取当前位置详细的地址信息
         mLocationClient.setLocOption(option);
+    }
+
+    /**
+     * @function 移动到我的位置
+     *
+     */
+    private void navigateTo(BDLocation location){
+        if (isFirstLocate){
+            //LatLng类存放经纬度值
+            LatLng latLng=new LatLng(location.getLatitude(),location.getLongitude());
+            //
+            MapStatusUpdate update= MapStatusUpdateFactory.newLatLng(latLng);
+            baiduMap.animateMapStatus(update);
+            update=MapStatusUpdateFactory.zoomTo(16f); //地图缩放级别
+            baiduMap.animateMapStatus(update); //将地图移动到新的经纬度位置上
+            isFirstLocate=false;
+
+        }
+        //将‘我’显示到地图上
+        MyLocationData.Builder locationBuilder = new MyLocationData.
+                Builder();
+        locationBuilder.latitude(location.getLatitude());
+        locationBuilder.longitude(location.getLongitude());
+        MyLocationData locationData = locationBuilder.build();
+        baiduMap.setMyLocationData(locationData);
     }
 
 
@@ -149,6 +185,14 @@ public class MainActivity extends AppCompatActivity {
                 currentPosition.append("未知");
             }
             positionText.setText(currentPosition);
+
+            if(location.getLocType()==BDLocation.TypeGpsLocation
+                    ||location.getLocType()==BDLocation.TypeNetWorkLocation){
+                navigateTo(location);
+
+            }
+
+
 
         }
 
